@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Risk Report – {{ run_date }}</title>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --card: #1a1d27;
+            --border: #2a2d3a;
+            --text: #e0e0e6;
+            --muted: #8b8fa3;
+            --accent: #6c8cff;
+            --green: #4caf82;
+            --red: #e05555;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.95rem; }
+        h2 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin: 2rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.55rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        th { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+        td { font-variant-numeric: tabular-nums; }
+        .kpi-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .kpi {
+            flex: 1 1 140px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+        }
+        .kpi .label { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+        .kpi .value { font-size: 1.45rem; font-weight: 700; margin-top: 0.2rem; }
+        .positive { color: var(--green); }
+        .negative { color: var(--red); }
+        .config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem 1.5rem; font-size: 0.88rem; }
+        .config-grid .key { color: var(--muted); }
+        .chart-container { margin-bottom: 1.5rem; }
+        .footer { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 3rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Portfolio Risk Report</h1>
+    <p class="subtitle">Generated {{ run_date }} · Walk-forward backtest · {{ config.cov_method | upper }} covariance</p>
+
+    <!-- KPIs -->
+    <div class="kpi-row">
+        <div class="kpi">
+            <div class="label">CAGR</div>
+            <div class="value {{ 'positive' if stats['CAGR'] > 0 else 'negative' }}">{{ stats['CAGR'] }}%</div>
+        </div>
+        <div class="kpi">
+            <div class="label">Volatility</div>
+            <div class="value">{{ stats['Vol (ann.)'] }}%</div>
+        </div>
+        <div class="kpi">
+            <div class="label">Sharpe</div>
+            <div class="value">{{ stats['Sharpe'] }}</div>
+        </div>
+        <div class="kpi">
+            <div class="label">Max Drawdown</div>
+            <div class="value negative">{{ stats['Max Drawdown'] }}%</div>
+        </div>
+        <div class="kpi">
+            <div class="label">Calmar</div>
+            <div class="value">{{ stats['Calmar'] }}</div>
+        </div>
+    </div>
+
+    <!-- NAV chart -->
+    <h2>Cumulative Performance</h2>
+    <div class="card chart-container">{{ nav_chart | safe }}</div>
+
+    <!-- Drawdown chart -->
+    <h2>Drawdown</h2>
+    <div class="card chart-container">{{ dd_chart | safe }}</div>
+
+    <!-- Rolling vol chart -->
+    <h2>Rolling Volatility (126-day)</h2>
+    <div class="card chart-container">{{ vol_chart | safe }}</div>
+
+    <!-- Weights chart -->
+    <h2>Portfolio Weights Over Time</h2>
+    <div class="card chart-container">{{ weights_chart | safe }}</div>
+
+    <!-- Performance table -->
+    <h2>Performance Summary</h2>
+    <div class="card">
+        <table>
+            <thead><tr>
+            {% for key in stats %}
+                <th>{{ key }}</th>
+            {% endfor %}
+            </tr></thead>
+            <tbody><tr>
+            {% for key, val in stats.items() %}
+                <td>{{ val }}{% if '%' not in (val|string) and 'Day' not in key and 'Year' not in key and 'Sharpe' not in key and 'Calmar' not in key %}{% endif %}</td>
+            {% endfor %}
+            </tr></tbody>
+        </table>
+    </div>
+
+    {% if bench_stats %}
+    <h2>Benchmark ({{ config.benchmark_ticker }}) Summary</h2>
+    <div class="card">
+        <table>
+            <thead><tr>
+            {% for key in bench_stats %}
+                <th>{{ key }}</th>
+            {% endfor %}
+            </tr></thead>
+            <tbody><tr>
+            {% for key, val in bench_stats.items() %}
+                <td>{{ val }}</td>
+            {% endfor %}
+            </tr></tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Latest weights -->
+    <h2>Latest Portfolio Weights</h2>
+    <div class="card">
+        <table>
+            <thead><tr><th>Ticker</th><th>Weight (%)</th></tr></thead>
+            <tbody>
+            {% for ticker, w in latest_weights %}
+                <tr><td>{{ ticker }}</td><td>{{ "%.2f"|format(w * 100) }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Turnover & costs -->
+    <h2>Turnover &amp; Transaction Costs</h2>
+    <div class="card">
+        <table>
+            <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+            <tbody>
+                <tr><td>Avg. Turnover per Rebalance</td><td>{{ "%.2f"|format(avg_turnover * 100) }}%</td></tr>
+                <tr><td>Total Est. Transaction Costs</td><td>{{ "%.2f"|format(total_tc_bps) }} bps</td></tr>
+                <tr><td>Number of Rebalances</td><td>{{ n_rebalances }}</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Configuration -->
+    <h2>Run Configuration</h2>
+    <div class="card">
+        <div class="config-grid">
+            <div><span class="key">Tickers:</span> {{ config.tickers | join(', ') }}</div>
+            <div><span class="key">Period:</span> {{ config.start_date }} → {{ config.end_date or 'today' }}</div>
+            <div><span class="key">Est. Window:</span> {{ config.estimation_window_days }} days</div>
+            <div><span class="key">Rebalance:</span> {{ config.rebalance_freq }}</div>
+            <div><span class="key">Cov Method:</span> {{ config.cov_method }}</div>
+            <div><span class="key">Max Weight:</span> {{ "%.0f"|format(config.w_max * 100) }}%</div>
+            <div><span class="key">TC:</span> {{ config.tc_bps }} bps</div>
+            <div><span class="key">Long Only:</span> {{ config.long_only }}</div>
+        </div>
+    </div>
+
+    <p class="footer">Portfolio Risk Report · Auto-generated pipeline</p>
+</div>
+</body>
+</html>
